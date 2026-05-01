@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SqlDialectMappings">
+    <file url="file://$PROJECT_DIR$/cmd/migrate/migrations/000001_create_users.up.sql" dialect="PostgreSQL" />
+    <file url="file://$PROJECT_DIR$/cmd/migrate/migrations/000002_posts_create.up.sql" dialect="PostgreSQL" />
+    <file url="file://$PROJECT_DIR$/cmd/migrate/migrations/000007_add_comments.up.sql" dialect="PostgreSQL" />
+    <file url="file://$PROJECT_DIR$/scripts/db_init.sql" dialect="PostgreSQL" />
+  </component>
+</project>

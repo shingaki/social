@@ -1,0 +1,7 @@
+.envrc
+bin/
+/docs/swagger.json
+/docs/swagger.yaml
+/bin/*
+docker-compose.yml
+/.idea/*
