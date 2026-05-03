@@ -1,0 +1,10 @@
+POST http://localhost:8080/v1/posts
+Accept: application/json
+
+{
+    "title": "New post",
+    "content": "Hey guys this is my third post",
+    "tags": ["tag1"]
+}
+
+###

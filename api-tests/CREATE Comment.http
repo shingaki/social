@@ -1,0 +1,6 @@
+PATCH http://localhost:8080/v1/posts
+Accept: application/json
+
+{
+    "title": "Updated post again xyz"
+}

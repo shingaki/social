@@ -16,4 +16,3 @@ migrate-down:
 .PHONY: seed
 seed:
 	@go run cmd/migrate/migrations/seed/main.go
-
