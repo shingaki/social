@@ -1,5 +1,23 @@
 basePath: /v1
 definitions:
+  main.RegisterUserPayload:
+    properties:
+      email:
+        maxLength: 255
+        type: string
+      password:
+        maxLength: 72
+        minLength: 3
+        type: string
+      username:
+        maxLength: 100
+        minLength: 3
+        type: string
+    required:
+    - email
+    - password
+    - username
+    type: object
   store.Comment:
     properties:
       content:
@@ -94,6 +112,34 @@ info:
   termsOfService: http://swagger.io/terms/
   title: Tamami GopherSocial API
 paths:
+  /authentication/user:
+    post:
+      consumes:
+      - application/json
+      description: Creates a user
+      parameters:
+      - description: User credentials
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/main.RegisterUserPayload'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User registered
+          schema:
+            $ref: '#/definitions/store.User'
+        "400":
+          description: Bad Request
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: Register a User
+      tags:
+      - authentication
   /health:
     get:
       consumes:
