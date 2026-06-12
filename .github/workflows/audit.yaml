@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [ main ]
 
-  jobs:
+jobs:
     audit:
       runs-on: ubuntu-20.04
       steps:
@@ -33,5 +33,3 @@ on:
 
         - name: Run Tests
           run: go test -v ./...
-
-jobs:
