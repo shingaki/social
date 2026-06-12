@@ -1,5 +1,34 @@
 basePath: /v1
 definitions:
+  main.CreatePostPayload:
+    properties:
+      content:
+        maxLength: 1000
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      title:
+        maxLength: 100
+        type: string
+    required:
+    - content
+    - title
+    type: object
+  main.CreateUserTokenPayload:
+    properties:
+      email:
+        maxLength: 255
+        type: string
+      password:
+        maxLength: 72
+        minLength: 3
+        type: string
+    required:
+    - email
+    - password
+    type: object
   main.RegisterUserPayload:
     properties:
       email:
@@ -17,6 +46,34 @@ definitions:
     - email
     - password
     - username
+    type: object
+  main.UpdatePostPayload:
+    properties:
+      content:
+        maxLength: 1000
+        type: string
+      title:
+        maxLength: 100
+        type: string
+    type: object
+  main.UserWithToken:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      role:
+        $ref: '#/definitions/store.Role'
+      role_id:
+        type: integer
+      token:
+        type: string
+      username:
+        type: string
     type: object
   store.Comment:
     properties:
@@ -89,6 +146,17 @@ definitions:
       version:
         type: integer
     type: object
+  store.Role:
+    properties:
+      description:
+        type: string
+      id:
+        type: integer
+      level:
+        type: integer
+      name:
+        type: string
+    type: object
   store.User:
     properties:
       created_at:
@@ -96,6 +164,12 @@ definitions:
       email:
         type: string
       id:
+        type: integer
+      is_active:
+        type: boolean
+      role:
+        $ref: '#/definitions/store.Role'
+      role_id:
         type: integer
       username:
         type: string
@@ -112,6 +186,37 @@ info:
   termsOfService: http://swagger.io/terms/
   title: Tamami GopherSocial API
 paths:
+  /authentication/token:
+    post:
+      consumes:
+      - application/json
+      description: Creates a token for a user
+      parameters:
+      - description: User credentials
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/main.CreateUserTokenPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Token
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema: {}
+        "401":
+          description: Unauthorized
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: Creates a token
+      tags:
+      - authentication
   /authentication/user:
     post:
       consumes:
@@ -130,7 +235,7 @@ paths:
         "201":
           description: User registered
           schema:
-            $ref: '#/definitions/store.User'
+            $ref: '#/definitions/main.UserWithToken'
         "400":
           description: Bad Request
           schema: {}
@@ -159,11 +264,72 @@ paths:
           description: Internal Server Error
           schema: {}
       security:
-      - APIKeyAuth: []
+      - BasicAuth: []
       summary: checks health of the application
       tags:
       - ops
+  /posts:
+    post:
+      consumes:
+      - application/json
+      description: Creates a post
+      parameters:
+      - description: Post payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/main.CreatePostPayload'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/store.Post'
+        "400":
+          description: Bad Request
+          schema: {}
+        "401":
+          description: Unauthorized
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      security:
+      - BearerAuth: []
+      summary: Creates a post
+      tags:
+      - posts
   /posts/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a post by ID
+      parameters:
+      - description: Post ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      security:
+      - BearerAuth: []
+      summary: Deletes a post
+      tags:
+      - posts
     get:
       consumes:
       - application/json
@@ -191,8 +357,48 @@ paths:
           description: Internal Server Error
           schema: {}
       security:
-      - APIKeyAuth: []
+      - BearerAuth: []
       summary: Fetches a post
+      tags:
+      - posts
+    patch:
+      consumes:
+      - application/json
+      description: Updates a post by ID
+      parameters:
+      - description: Post ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Post payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/main.UpdatePostPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/store.Post'
+        "400":
+          description: Bad Request
+          schema: {}
+        "401":
+          description: Unauthorized
+          schema: {}
+        "404":
+          description: Not Found
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      security:
+      - BearerAuth: []
+      summary: Updates a post
       tags:
       - posts
   /users/{id}:
@@ -223,7 +429,7 @@ paths:
           description: Internal Server Error
           schema: {}
       security:
-      - APIKeyAuth: []
+      - BearerAuth: []
       summary: Fetches a user profile
       tags:
       - users
@@ -255,7 +461,7 @@ paths:
           description: Internal Server Error
           schema: {}
       security:
-      - APIKeyAuth: []
+      - BearerAuth: []
       summary: Follows a user
       tags:
       - users
@@ -287,8 +493,35 @@ paths:
           description: Internal Server Error
           schema: {}
       security:
-      - APIKeyAuth: []
+      - BearerAuth: []
       summary: Unfollows a user
+      tags:
+      - users
+  /users/activate/{token}:
+    put:
+      description: Activates/Register a user by invitation token
+      parameters:
+      - description: Invitation token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: User activated
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      security:
+      - BearerAuth: []
+      summary: Activates/Register a user
       tags:
       - users
   /users/feed:
@@ -339,12 +572,15 @@ paths:
           description: Internal Server Error
           schema: {}
       security:
-      - APIKeyAuth: []
+      - BearerAuth: []
       summary: Gets the feed for a user
       tags:
       - feed
 securityDefinitions:
-  ApiKeyAuth:
+  BasicAuth:
+    type: basic
+  BearerAuth:
+    description: 'Enter: Bearer <your-jwt-token>'
     in: header
     name: Authorization
     type: apiKey
