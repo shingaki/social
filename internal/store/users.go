@@ -2,8 +2,12 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"log"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -21,6 +25,8 @@ type User struct {
 	Password  password `json:"-"`
 	CreatedAt string   `json:"created_at"`
 	IsActive  bool     `json:"is_active"`
+	RoleID    int64    `json:"role_id"`
+	Role      Role     `json:"role"`
 }
 
 type password struct {
@@ -39,15 +45,34 @@ func (p *password) Set(text string) error {
 	return nil
 }
 
+func (p password) Matches(plainTextPassword string) (bool, error) {
+	err := bcrypt.CompareHashAndPassword(
+		p.hash,                    // hashed password from DB
+		[]byte(plainTextPassword), // password user entered
+	)
+
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
 type UserStore struct {
 	db *sql.DB
 }
 
 func (s *UserStore) Create(ctx context.Context, tx *sql.Tx, user *User) error {
-	query := `INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id, created_at`
+	query := `INSERT INTO users (username, email, password, role_id) VALUES ($1, $2, $3, (SELECT id FROM roles WHERE name = $4)) RETURNING id, created_at`
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()
+
+	role := user.Role.Name
+	log.Printf("Creating user with role: %s", role)
+	if role == "" {
+		role = "user"
+	}
 
 	err := tx.QueryRowContext(
 		ctx,
@@ -55,6 +80,7 @@ func (s *UserStore) Create(ctx context.Context, tx *sql.Tx, user *User) error {
 		user.Username,
 		user.Email,
 		user.Password.hash,
+		role,
 	).Scan(
 		&user.ID,
 		&user.CreatedAt,
@@ -73,7 +99,7 @@ func (s *UserStore) Create(ctx context.Context, tx *sql.Tx, user *User) error {
 }
 
 func (s *UserStore) GetByID(ctx context.Context, userID int64) (*User, error) {
-	query := `SELECT id, username, email, password, created_at FROM users WHERE id = $1`
+	query := `SELECT users.id, username, email, password, created_at, roles.*  FROM users JOIN roles ON (users.role_id = roles.id) WHERE users.id = $1 AND is_active = true`
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
 	defer cancel()
@@ -84,8 +110,12 @@ func (s *UserStore) GetByID(ctx context.Context, userID int64) (*User, error) {
 		&user.ID,
 		&user.Username,
 		&user.Email,
-		&user.Password,
+		&user.Password.hash,
 		&user.CreatedAt,
+		&user.Role.ID,
+		&user.Role.Name,
+		&user.Role.Level,
+		&user.Role.Description,
 	)
 	if err != nil {
 		switch err {
@@ -113,6 +143,59 @@ func (s *UserStore) CreateAndInvite(ctx context.Context, user *User, token strin
 	})
 }
 
+func (s *UserStore) Activate(ctx context.Context, token string) error {
+	return withTx(s.db, ctx, func(tx *sql.Tx) error {
+		// 1. find the user that this token belongs to
+		user, err := s.getUserFromInvitation(ctx, tx, token)
+		if err != nil {
+			return err
+		}
+
+		// w. update the user
+		user.IsActive = true
+		if err := s.update(ctx, tx, user); err != nil {
+			return err
+		}
+
+		//3. clean the invitation
+		if err := s.deleteUserInvitation(ctx, tx, user.ID); err != nil {
+			return err
+		}
+		return nil
+	})
+
+}
+
+func (s *UserStore) getUserFromInvitation(ctx context.Context, tx *sql.Tx, token string) (*User, error) {
+	query := `SELECT u.id, u.username, u.email, u.created_at, u.is_active FROM users u
+	JOIN user_invitations ui ON  u.id = ui.user_id
+	WHERE ui.token = $1 AND ui.expiry > $2`
+
+	hash := sha256.Sum256([]byte(token))
+	hashToken := hex.EncodeToString(hash[:])
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
+	defer cancel()
+
+	user := &User{}
+	err := tx.QueryRowContext(ctx, query, hashToken, time.Now()).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.CreatedAt,
+		&user.IsActive,
+	)
+	if err != nil {
+		switch err {
+		case sql.ErrNoRows:
+			return nil, ErrNotFound
+		default:
+			return nil, err
+		}
+	}
+	return user, nil
+}
+
 func (s *UserStore) createUserInvitation(ctx context.Context, tx *sql.Tx, token string, exp time.Duration, userID int64) error {
 	query := `
 		INSERT INTO user_invitations (token, user_id, expiry) VALUES ($1, $2, $3)
@@ -126,4 +209,90 @@ func (s *UserStore) createUserInvitation(ctx context.Context, tx *sql.Tx, token 
 	}
 
 	return nil
+}
+
+func (s *UserStore) update(ctx context.Context, tx *sql.Tx, user *User) error {
+	log.Printf("Updating user: %d", user.ID)
+	fmt.Printf(
+		"userId=%v email=%v active=%v id=%v\n",
+		user.ID,
+		user.Email,
+		user.IsActive,
+		user.Username,
+	)
+	query := `UPDATE users SET username = $1, email = $2, is_active = $3 WHERE id = $4`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
+	defer cancel()
+
+	log.Println(query)
+
+	_, err := tx.ExecContext(ctx, query, user.Username, user.Email, user.IsActive, user.ID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *UserStore) deleteUserInvitation(ctx context.Context, tx *sql.Tx, userID int64) error {
+	query := `DELETE FROM user_invitations WHERE user_id = $1`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
+	defer cancel()
+
+	_, err := tx.ExecContext(ctx, query, userID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *UserStore) Delete(ctx context.Context, userID int64) error {
+	return withTx(s.db, ctx, func(tx *sql.Tx) error {
+		if err := s.delete(ctx, tx, userID); err != nil {
+			return err
+		}
+
+		if err := s.deleteUserInvitation(ctx, tx, userID); err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
+func (s *UserStore) delete(ctx context.Context, tx *sql.Tx, id int64) error {
+	query := `DELETE FROM users WHERE id = $1`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
+	defer cancel()
+
+	_, err := tx.ExecContext(ctx, query, id)
+	return err
+}
+
+func (s *UserStore) GetByEmail(ctx context.Context, email string) (*User, error) {
+	query := `SELECT id, username, email, password, created_at FROM users WHERE email = $1 AND is_active = true`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeoutDuration)
+	defer cancel()
+
+	user := &User{}
+
+	err := s.db.QueryRowContext(ctx, query, email).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.Password.hash,
+		&user.CreatedAt,
+	)
+	if err != nil {
+		switch err {
+		case sql.ErrNoRows:
+			return nil, ErrNotFound
+		default:
+		}
+		return nil, err
+	}
+	return user, nil
 }
