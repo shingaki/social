@@ -2,9 +2,9 @@ name: Audit
 
 on:
   push:
-    branches: [ Tamami_Social_v2 ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
     audit:
