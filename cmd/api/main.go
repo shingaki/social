@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const version = ""
+const version = "0.0.1"
 
 //	@title			Tamami GopherSocial API
 //	@description	This is a Tamami GopherSocial API.
