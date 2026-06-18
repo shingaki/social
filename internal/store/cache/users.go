@@ -18,9 +18,9 @@ const UserExpTime = time.Minute
 
 // Gets the user from the cache
 func (s *UserStore) Get(ctx context.Context, userID int64) (*store.User, error) {
-	fmt.Sprintf("Getting user from cache: %v", userID)
+	fmt.Printf("Getting user from cache: %v", userID)
 	cacheKey := fmt.Sprintf("user-%d", userID)
-	fmt.Sprintf("Cache key: %v", cacheKey)
+	fmt.Printf("Cache key: %v", cacheKey)
 
 	data, err := s.rdb.Get(ctx, cacheKey).Result()
 	if err == redis.Nil {
