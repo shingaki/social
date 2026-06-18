@@ -7,16 +7,16 @@ import (
 	"log"
 )
 
-type sdConfig struct {
-	conn seedConfig
-}
-
-type seedConfig struct {
-	addr         string
-	maxOpenConns int
-	maxIdleConns int
-	maxIdleTime  string
-}
+//type sdConfig struct {
+//	conn seedConfig
+//}
+//
+//type seedConfig struct {
+//	addr         string
+//	maxOpenConns int
+//	maxIdleConns int
+//	maxIdleTime  string
+//}
 
 type config struct {
 	conn dbConfig

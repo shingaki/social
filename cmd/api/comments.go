@@ -7,9 +7,9 @@ import (
 	"net/http"
 )
 
-type commentKey string
-
-const commentCtx postKey = "comment"
+//type commentKey string
+//
+//const commentCtx postKey = "comment"
 
 type CreateCommentPayload struct {
 	Content   string `json:"content" validate:"required,max=1000"`
